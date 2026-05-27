@@ -5,11 +5,11 @@ def fir_loss(noisy : In[Array[float]], clean : In[Array[float]], weights : In[Ar
     j : int  = 0
     diff : float = 0
     
-    while (i < N, max_iter := 2000):
+    while (i < N, max_iter := 51000): # max value for N
         sum = 0.0
         j = 0
         # convolve
-        while (j < K, max_iter := 100):
+        while (j < K, max_iter := 38): # max value for K
             sum = sum + noisy[i - j] * weights[j]
             j = j + 1
         

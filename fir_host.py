@@ -1,93 +1,94 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import sys
 import ctypes
+from tqdm import tqdm
 
 loma_public_path = os.path.join(os.path.dirname(__file__), '..', 'loma_public')
 sys.path.insert(0, loma_public_path)
 import compiler
 
-# compile loma code
-with open('loma_code/fir.py') as f:
-    structs, lib = compiler.compile(f.read(),
-                                    target = 'c',
-                                    output_filename = '_code/fir')
-
-grad_f = lib.grad_fir
-forward_loss = lib.fir_loss
-
-N = 1000 
-K = 20   
-
-time = np.linspace(0, 10 * np.pi, N, dtype=np.float32)
-clean_audio = np.sin(time).astype(np.float32)
-noisy_audio = clean_audio + np.random.normal(0, 0.5, N).astype(np.float32)
-
-# init weights
-weights = np.random.normal(loc=0.0, scale=0.1, size=K).astype(np.float32)
-
-dummy_d_noisy = np.zeros(N, dtype=np.float32)
-dummy_d_clean = np.zeros(N, dtype=np.float32)
-
 C_FLOAT_PTR = ctypes.POINTER(ctypes.c_float)
 
-# TODO try diff learning rates
-learning_rate = 0.0000001
-epochs = 800
-loss_history = []
+# compile loma code
+def get_loma_func():
+    with open('../loma_code/fir.py') as f:
+        _, lib = compiler.compile(f.read(),
+                                        target = 'c',
+                                        output_filename = '_code/fir')
 
-print("Starting Training...")
-for epoch in range(epochs):
-    # init grad
-    grad_weights = np.zeros(K, dtype=np.float32)
-    
-    # loma rev pass
-    grad_f(
-        noisy_audio.ctypes.data_as(C_FLOAT_PTR),
-        clean_audio.ctypes.data_as(C_FLOAT_PTR),
-        weights.ctypes.data_as(C_FLOAT_PTR),
-        grad_weights.ctypes.data_as(C_FLOAT_PTR),
-        dummy_d_noisy.ctypes.data_as(C_FLOAT_PTR),
-        dummy_d_clean.ctypes.data_as(C_FLOAT_PTR),
-        N,
-        K
-    )
-    
-    weights -= learning_rate * grad_weights
-    current_loss = forward_loss(
-        noisy_audio.ctypes.data_as(C_FLOAT_PTR),
-        clean_audio.ctypes.data_as(C_FLOAT_PTR),
-        weights.ctypes.data_as(C_FLOAT_PTR),
-        N, 
-        K
-    )
-    loss_history.append(current_loss)
-    
-    if epoch % 50 == 0:
-        print("weights snippet: ", weights[:10])
-        print(f"Epoch {epoch} | Loss: {current_loss:.4f}")
+    grad_f = lib.grad_fir
+    forward_loss = lib.fir_loss
 
-# plot results
-plt.figure(figsize=(12, 8))
+    return grad_f, forward_loss
 
-plt.subplot(3, 1, 1)
-plt.title("Loss over Time")
-plt.plot(loss_history, color='red')
+def train_fir(noisy_audio, clean_audio, N, K, epochs=250, lr=0.0000001, BATCH_SIZE=32): # N is how long the longest sample is, K is length of weights vector
+    grad_f, forward_loss = get_loma_func()
 
-plt.subplot(3, 1, 2)
-plt.title("Learned Filter Weights (The FIR Kernel)")
-plt.plot(weights, marker='o')
+    # init weights
+    weights = np.zeros(K, dtype=np.float32)
 
-# example
-denoised_audio = np.convolve(noisy_audio, weights, mode='same')
+    loss_history = []
 
-plt.subplot(3, 1, 3)
-plt.title("Audio Comparison")
-plt.plot(noisy_audio[:200], label="Noisy Input", alpha=0.5)
-plt.plot(clean_audio[:200], label="Clean Ground Truth", linewidth=2)
-plt.plot(denoised_audio[:200], label="Denoised Output", linestyle='--')
-plt.legend()
+    for epoch in tqdm(range(epochs), "training..."):
+        # partition the data into minibatches of size BATCH_SIZE
+        batched_noisy_data = []
+        batched_clean_data = []
 
-plt.tight_layout()
-plt.show()
+        num_samples = len(noisy_audio)
+        shuffled_indices = np.random.permutation(num_samples)
+        for i in range(0, num_samples, BATCH_SIZE):
+            batch_indices = shuffled_indices[i:i+BATCH_SIZE]
+            batched_noisy_data.append([noisy_audio[j] for j in batch_indices])
+            batched_clean_data.append([clean_audio[j] for j in batch_indices])
+
+        # paired batches for iteration
+        batched_data = list(zip(batched_noisy_data, batched_clean_data))
+        batch_loss = []
+
+        for noisy_batch, clean_batch in batched_data:
+            # start of every minibatch reset the grad weight accumulation
+            grad_weights = np.zeros(K, dtype=np.float32)
+            entry_loss = []
+            
+            for idx in range(len(noisy_batch)):
+                entry_noisy = noisy_batch[idx].astype(np.float32) if hasattr(noisy_batch[idx], 'astype') else np.array([noisy_batch[idx]], dtype=np.float32)
+                entry_clean = clean_batch[idx].astype(np.float32) if hasattr(clean_batch[idx], 'astype') else np.array([clean_batch[idx]], dtype=np.float32)
+
+                dummy_d_noisy = np.zeros(len(entry_noisy), dtype=np.float32)
+                dummy_d_clean = np.zeros(len(entry_clean), dtype=np.float32)
+
+                # compute the rev pass for every entry in the batch
+                grad_f(
+                    entry_noisy.ctypes.data_as(C_FLOAT_PTR),
+                    entry_clean.ctypes.data_as(C_FLOAT_PTR),
+                    weights.ctypes.data_as(C_FLOAT_PTR),
+                    grad_weights.ctypes.data_as(C_FLOAT_PTR),
+                    dummy_d_noisy.ctypes.data_as(C_FLOAT_PTR),
+                    dummy_d_clean.ctypes.data_as(C_FLOAT_PTR),
+                    N,
+                    K
+                )
+
+                current_loss = forward_loss(
+                    entry_noisy.ctypes.data_as(C_FLOAT_PTR),
+                    entry_clean.ctypes.data_as(C_FLOAT_PTR),
+                    weights.ctypes.data_as(C_FLOAT_PTR),
+                    N, 
+                    K
+                )
+
+                entry_loss.append(current_loss)
+            # update the weights after the minibatch 
+            weights -= lr * grad_weights
+
+            batch_loss.append(np.average(np.array(entry_loss)))
+
+        loss_entry = np.average(np.array(batch_loss))
+        loss_history.append(loss_entry)
+        
+        if epoch % 50 == 0:
+            # print("weights snippet: ", weights[:10])
+            print(f"Epoch {epoch} | Loss: {loss_entry:.4f}")
+
+    return weights, loss_history
