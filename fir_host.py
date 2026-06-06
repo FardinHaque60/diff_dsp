@@ -22,7 +22,10 @@ def get_loma_func():
 
     return grad_f, forward_loss
 
-def train_fir(noisy_audio, clean_audio, N, K, epochs=250, lr=0.0000001, BATCH_SIZE=32): # N is how long the longest sample is, K is length of weights vector
+def train_fir(noisy_audio, clean_audio, N, K, epochs=250, lr=0.0000001, BATCH_SIZE=32):
+    '''
+        N is how long the longest sample is, K is length of weights vector
+    '''
     grad_f, forward_loss = get_loma_func()
 
     # init weights
