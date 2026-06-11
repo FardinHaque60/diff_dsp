@@ -24,8 +24,8 @@ def get_loma_func():
 def train_soft(noisy_audio, clean_audio, N, epochs=250, lr=1e-3, BATCH_SIZE=32):
     grad_f, forward_loss = get_loma_func() 
     
-    thresh = 1.0
-    scale = 1.0
+    thresh = 0.0
+    scale = 0.0
 
     loss_history = []
 
@@ -90,6 +90,7 @@ def train_soft(noisy_audio, clean_audio, N, epochs=250, lr=1e-3, BATCH_SIZE=32):
         if epoch % 10 == 0:
             print(f"Epoch {epoch} | Loss: {loss_entry:.4f}")
 
+    print(f"final loss: {loss_history[-1]}")
     return thresh, scale, loss_history
 
 

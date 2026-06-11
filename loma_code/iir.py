@@ -11,7 +11,7 @@ def iir_loss(noisy : In[Array[float]], clean : In[Array[float]], out_sig : In[Ar
     m : int  = 0
     diff : float = 0.0
     
-    while (i < N, max_iter := 10000): # original is 51000
+    while (i < N, max_iter := 30000): # original is 51000
         sum_b = 0.0
         j = 0
         while (j < K, max_iter := 38): # orig is 38

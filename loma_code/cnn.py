@@ -6,7 +6,7 @@ def cnn_loss(noisy : In[Array[float]], clean : In[Array[float]], weights : In[Ar
     # activated : float = 0.0
     diff : float = 0.0
     
-    while (i < N, max_iter := 10000):
+    while (i < N, max_iter := 30000):
         sum = bias
         j = 0
         

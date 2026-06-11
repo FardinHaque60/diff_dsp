@@ -90,6 +90,7 @@ def train_cnn(noisy_audio, clean_audio, N, K=20, epochs=250, lr=1e-5, BATCH_SIZE
         if epoch % 10 == 0:
             print(f"Epoch {epoch} | Loss: {loss_entry:.4f}")
 
+    print(f"final loss: {loss_history[-1]}")
     return weights, bias, loss_history
 
 

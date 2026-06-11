@@ -90,8 +90,10 @@ def train_fir(noisy_audio, clean_audio, N, K, epochs=250, lr=0.0000001, BATCH_SI
         loss_entry = np.average(np.array(batch_loss))
         loss_history.append(loss_entry)
         
-        if epoch % 50 == 0:
+        if epoch % 1000 == 0:
             # print("weights snippet: ", weights[:10])
             print(f"Epoch {epoch} | Loss: {loss_entry:.4f}")
+
+    print(f"final loss: {loss_history[-1]}")
 
     return weights, loss_history

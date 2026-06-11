@@ -105,17 +105,23 @@ def train_iir(noisy_audio, clean_audio, N, K=31, M=5, epochs=250, lr=1e-5, BATCH
         if epoch % 10 == 0:
             print(f"Epoch {epoch} | Loss: {loss_entry:.4f}")
 
+    print(f"final loss: {loss_history[-1]}")
     return b_weights, a_weights, loss_history
 
 
 if __name__ == "__main__":
     from data_proc.mock_data import gen_signal
+    from data_proc.parse_audio_data import parse_audio
     import os
     import sys
     import numpy as np
 
+    '''
     N = 1000
     time = np.linspace(0, 10 * np.pi, N, dtype=np.float32)
     data = gen_signal(N, time)
+    '''
+    N = 1000
+    data = parse_audio("data/clean1.wav", "data/noise1.wav")
 
     fwd_weights, back_weights, loss_hist = train_iir([data[0]], [data[1]], N, K=31, M=5, epochs=250, BATCH_SIZE=1)
